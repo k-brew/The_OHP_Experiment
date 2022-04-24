@@ -1,0 +1,68 @@
+---
+title: 'Empirical Project #1 - The OHP Experiment'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# *Question 1:*
+Explain the difference between the variables `treatment` and
+`ohp_all_ever_survey`. Explain why treatment is the treatment variable (Di),
+`rather than ohp_all_ever_survey`
+
+
+# *Question 2:*
+Provide evidence that the OHP lottery really did randomly assign individuals
+to treatment and control groups. Similar to Table 1 in Taubman et al. (2014),
+please create a nicely formatted table that reports means of 4 to 6 relevant
+characteristics for individuals in the control group.
+
+Note: Part of this question is to get you to think about which variables should
+be balanced in a randomized experiment. You need to read carefully through all
+the variables in the dataset (documentation attached at the end of this file)
+and decide which 4 to 6 you will summarize.
+
+# *Question 3:*
+
+For each of the variables you summarized above, calculate:
+  - the difference between the mean in the treatment group and the mean
+    in the control group;
+  - the standard error for the difference in means
+  
+Add these as columns two and three to the table you started in question 2.
+
+# *Question 4:*
+Is the balance table consistent with individuals having been randomly assigned
+to treatment group and control groups? Why or why not?
+
+# *Question 5:*
+Estimate the compliance rate for the OHP experiment. That is, what is the
+effect of being assigned to the treatment group on the probability of being
+enrolled in Medicaid?
+
+Hint: For this question and question 7, you can use the same regression as in
+question 3, just changing the dependent variable.
+
+# *Question 6:*
+What is the intent-to-treat (ITT) effect of the OHP experiment on health
+outcomes? Please create a nicely formatted table that reports ITT estimates on
+4 to 6 relevant health outcomes. Again, part of this question is to get you to
+think about which 4 to 6 variables could be used as health outcome variables.
+
+# *Question 7:*
+What is the “treatment on the treated” effect (ATET) of the OHP experiment,
+i.e. the effect among those who applied for Medicaid? Estimate it for every
+health outcome you chose in question 6 and provide some intuition for the
+calculation of this estimate.
+
+# *Question 8:*
+Do you have to worry about attrition bias in analyzing this data? Explain
+why or why not?
+
+# *Question 9:*
+Suppose that you are submitting these results to a general interest journal
+such as Science for publication. Write an abstract of 200 or fewer words
+describing what you have found in your analysis of the OHP data, similar to the
+abstract in Taubman et al. (2014).
