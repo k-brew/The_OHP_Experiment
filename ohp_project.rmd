@@ -7,11 +7,27 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r message=FALSE, warning=FALSE}
+# Loading packages
+pacman::p_load(ggplot2, stargazer, dplyr, magrittr,
+               knitr)
+```
+
+```{r}
+# Reading the data
+ohp <- haven::read_dta("data/ohp.dta")
+
+```
+
+
 # *Question 1:*
 Explain the difference between the variables `treatment` and
 `ohp_all_ever_survey`. Explain why treatment is the treatment variable (Di),
-`rather than ohp_all_ever_survey`
+rather than `ohp_all_ever_survey`
 
+The variable `treatment` is the treatment variable because the purpose of the study is to see the difference in observable health outcomes between those with the free coverage offered by OHP and those who are not given such benefits. 
+
+The variable `ohp_all_ever_survey` is not considered to be the treatment because it is not the variable that is being manipulated by the research designer for the experiment. It is still important to consider, however, because it will give us insight into compliance rates in the sample and will better illustrate the true treatment effect. 
 
 # *Question 2:*
 Provide evidence that the OHP lottery really did randomly assign individuals
@@ -21,8 +37,49 @@ characteristics for individuals in the control group.
 
 Note: Part of this question is to get you to think about which variables should
 be balanced in a randomized experiment. You need to read carefully through all
-the variables in the dataset (documentation attached at the end of this file)
+the variables in the data set (documentation attached at the end of this file)
 and decide which 4 to 6 you will summarize.
+
+```{r message=FALSE, warning=FALSE}
+# Converting values to numeric
+ohp = data.frame(lapply(
+  ohp, function(x) as.numeric(as.character(x))))
+
+# Creating intervals for different age ranges
+ohp %<>%
+  mutate(age_interval = cut(ohp$age_inp,breaks = seq(0,80,by=10),na.rm=T))
+
+# Converting variables to factors
+ohp %<>% mutate(treatment = as.factor(treatment),
+               ohp_all_ever_survey = as.factor(ohp_all_ever_survey),
+               gender_inp = as.factor(gender_inp))
+```
+
+The variables summarized in the table below were deemed as important considerations for ensuring a proper balance between the treatment and control groups. The `age` variable was selected because age plays a significant role in the demand for healthcare. Spending on healthcare for young people is [considerably less](http://web.archive.org/web/20160325101526/https://www.cms.gov/research-statistics-data-and-systems/statistics-trends-and-reports/nationalhealthexpenddata/nhe-fact-sheet.html) than healthcare spending on the elderly and could potentially skew the interpretation of the data if not properly considered.
+
+I also included `dep_dx_pre_lottery`, `hbp_dx_pre_lottery`, `dia_dx_pre_lottery`, and `rx_num_mod_inp` because the change in values of these variables are something we would expect to result from the introduction of the treatment. If these variables are balanced before the lottery, then we can be more confident that any differences of the post-lottery values for measures (like high blood pressure/hypertension, depression, and diabetes) can be more-confidently attributed to the effect of the treatment. The post-lottery variable were not selected because, if the expectations of the study hold, then we would expect to see an imbalance between the treatment and control for several variables. 
+
+`Gender` was selected in order to account for differences in gender and trends in healthcare usage. [Some studies](https://pubmed.ncbi.nlm.nih.gov/10718692/#:~:text=Background%3A%20Studies%20have%20shown%20that,health%20care%20services%20than%20men.) suggest women tend to use healthcare services at higher rates than men. Therefore, including this variable in our consideration can help to remove and differences that may naturally exist prior to the treatment.
+
+
+```{r message=FALSE, warning=FALSE}
+library(expss)
+
+ohp %>% apply_labels(.,
+                     treatment=c("Treatment"=1,
+                                 "Control"=0),
+                     age_inp="Age",
+                     gender_inp="Gender",
+                     dep_dx_pre_lottery="Depression Diagnosis (pre-lottery)",
+                     dia_dx_pre_lottery="Diabetes Diagnosis (pre-lottery)",
+                     hbp_dx_pre_lottery=
+                       "High Blood Pressue/Hypertension (pre-lottery)") %>%
+    tab_cells(age_inp,gender_inp, 
+              dep_dx_pre_lottery,dia_dx_pre_lottery,hbp_dx_pre_lottery) %>%
+    tab_cols(total(), treatment) %>% 
+    tab_stat_mean_sd_n() %>%
+    tab_pivot()
+```
 
 # *Question 3:*
 
@@ -30,39 +87,246 @@ For each of the variables you summarized above, calculate:
   - the difference between the mean in the treatment group and the mean
     in the control group;
   - the standard error for the difference in means
-  
-Add these as columns two and three to the table you started in question 2.
+
+The results from the regression below help support the notion of randomness since their appears to be no statistical significance in attempting to define trends in the data.  
+```{r message=FALSE, warning=FALSE}
+glm(data = ohp, formula = treatment ~ age_inp + gender_inp +
+      dep_dx_pre_lottery+dia_dx_pre_lottery+hbp_dx_pre_lottery,
+    family=binomial) -> mod1
+summary(mod1)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(lemon)
+knit_print.data.frame <- lemon_print
+```
+
+```{r message=FALSE, warning=FALSE, render=lemon_print}
+tab = ohp %>% group_by(treatment) %>% na.omit() %>%
+  mutate(gender_inp = as.integer(gender_inp)) %>%
+  summarise(avg_age      =  mean(age_inp),
+            gender_ratio =  mean(gender_inp),
+            avg_hbp_dx   =  mean(hbp_dx_pre_lottery),
+            avg_dep_dx   =  mean(dep_dx_pre_lottery),
+            avg_dia_dx   =  mean(dia_dx_pre_lottery))%>%
+  add_row(treatment="..Standard Deviation") %>%
+  add_row(treatment=".....Difference in Means") %>%
+  add_row(treatment=".....Difference in St.Dev")%>%
+  add_row(treatment="..Standard Deviation", .before = 2)
+
+# Defining sd calculations
+tab[2,2]= ohp %>% filter(treatment==0) %>% na.omit() %>%
+  summarise(sd(age_inp))
+tab[2,3]= ohp %>% filter(treatment==0) %>% na.omit() %>%
+  mutate(gender_inp = as.numeric(gender_inp)) %>%
+  summarise(sd(gender_inp))
+tab[2,4]= ohp %>% filter(treatment==0) %>% na.omit() %>%
+  summarise(sd(hbp_dx_pre_lottery))
+tab[2,5]= ohp %>% filter(treatment==0) %>% na.omit() %>%
+  summarise(sd(dep_dx_pre_lottery))
+tab[2,6]= ohp %>% filter(treatment==0) %>% na.omit() %>%
+  summarise(sd(dia_dx_pre_lottery))
+
+tab[4,2]= ohp %>% filter(treatment==1) %>% na.omit() %>%
+  summarise(sd(age_inp))
+tab[4,3]= ohp %>% filter(treatment==1) %>% na.omit() %>%
+  mutate(gender_inp = as.numeric(gender_inp)) %>%
+  summarise(sd(gender_inp))
+tab[4,4]= ohp %>% filter(treatment==1) %>% na.omit() %>%
+  summarise(sd(hbp_dx_pre_lottery))
+tab[4,5]= ohp %>% filter(treatment==1) %>% na.omit() %>%
+  summarise(sd(dep_dx_pre_lottery))
+tab[4,6]= ohp %>% filter(treatment==1) %>% na.omit() %>%
+  summarise(sd(dia_dx_pre_lottery))
+
+
+# Defining differences in means
+tab[5,2]= (tab[1,2]) - (tab[3,2])
+tab[5,3]= (tab[1,3]) - (tab[3,3])
+tab[5,4]= (tab[1,4]) - (tab[3,4])
+tab[5,5]= (tab[1,5]) - (tab[3,5])
+tab[5,6]= (tab[1,6]) - (tab[3,6])
+
+# Defining differences in sd's
+tab[6,2]= (tab[2,2]) - (tab[4,2])
+tab[6,3]= (tab[2,3]) - (tab[4,3])
+tab[6,4]= (tab[2,4]) - (tab[4,4])
+tab[6,5]= (tab[2,5]) - (tab[4,5])
+tab[6,6]= (tab[2,6]) - (tab[4,6])
+
+
+tab[1,1]="Treatment - Mean"
+tab[3,1]="Control   - Mean"
+    # Printing results
+tab
+```
+
+
 
 # *Question 4:*
 Is the balance table consistent with individuals having been randomly assigned
 to treatment group and control groups? Why or why not?
+
+Yes the balance table is consistent with individuals having been randomly assigned to the treatment and control groups. If we look at a frequency distribution of age and the assignment of treatment for one particular example, we can see that the distribution of the data is fairly consistent.
+```{r frequency plot}
+df = ohp %>%
+  group_by(treatment) %>%
+  mutate(treatment = as.factor(treatment))%>%
+  na.omit()%>%
+  summarise(plyr::count(age_inp)) %>% ungroup()
+
+
+ggplot(df,aes(x = x, y = freq,fill=treatment)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.5),
+           alpha=.75) + xlab("Age") + ylab("Frequency") + xlim(20,65)
+```
+
+More formally, we can quantify whether this means that there is *true* randomization with myriad of different tests. We can challenge our null and alternative hypotheses by using pre-written packages in `R`. With the calculated p-value below, we can reject our alternative hypothesis of non-randomness of age. 
+```{r}
+randtests::runs.test(ohp$age_inp,plot=T)
+```
+
+Alternatively we could determine the same with a t-test. Based on the p-value of this test, we support our null hypothesis of no true difference existing between the means,
+```{r}
+t.test(dep_dx_pre_lottery ~ treatment, data = ohp)
+```
 
 # *Question 5:*
 Estimate the compliance rate for the OHP experiment. That is, what is the
 effect of being assigned to the treatment group on the probability of being
 enrolled in Medicaid?
 
-Hint: For this question and question 7, you can use the same regression as in
-question 3, just changing the dependent variable.
+If *compliance rate* is defined as the fraction of the treatment group units receiving treatment minus the fraction of control group units reviving treatment, we can calculate the rate as follows: 
+```{r}
+# Fraction of treatment group reciving treatment
+treat_total = ohp %>% filter(treatment==1) %>% count()
+treat_comp  = ohp %>% filter(treatment==1 & ohp_all_ever_survey==1) %>% count()
+treat_rec_treat = treat_comp/treat_total
 
-# *Question 6:*
-What is the intent-to-treat (ITT) effect of the OHP experiment on health
+# Fraction of control group reciving treatment 
+ctrl_total = ohp %>% filter(treatment==0) %>% count()
+ctrl_comp  = ohp %>% filter(treatment==0 & ohp_all_ever_survey==1) %>% count()
+ctrl_rec_treat = ctrl_comp/ctrl_total
+
+compl_rate = treat_rec_treat - ctrl_rec_treat #  = compliance rate
+compl_rate
+```
+
+
+# *Question 6 & 7:*
+* What is the intent-to-treat (ITT) effect of the OHP experiment on health
 outcomes? Please create a nicely formatted table that reports ITT estimates on
 4 to 6 relevant health outcomes. Again, part of this question is to get you to
 think about which 4 to 6 variables could be used as health outcome variables.
-
-# *Question 7:*
-What is the “treatment on the treated” effect (ATET) of the OHP experiment,
+* What is the “treatment on the treated” effect (ATET) of the OHP experiment,
 i.e. the effect among those who applied for Medicaid? Estimate it for every
 health outcome you chose in question 6 and provide some intuition for the
 calculation of this estimate.
 
+The *ITT* is the raw difference between treatment and control groups, whereas the ATET (i.e. the "true impact") is calculated by dividing the ITT rate by the compliance rate. Let's look at differences for the following variables:
+  - `dia_dx_post_lottery`
+  - `hbp_dx_post_lottery`
+  - `dep_dx_post_lottery`
+  - `doc_num_mod_inp`
+  - `rx_num_mod_inp`
+
+```{r render=lemon_print}
+tab2 = ohp %>% group_by(treatment) %>% na.omit() %>%
+  summarise(avg_dia = mean(dia_dx_post_lottery),
+            avg_dep = mean(dep_dx_post_lottery),
+            avg_rx  = mean(rx_num_mod_inp),
+            avg_doc = mean(doc_num_mod_inp))%>%
+  add_row(treatment="..... Raw Difference (ITT)") %>%
+  add_row(treatment="..... Divided by Compliance Rate (ATET)")
+
+# Setting value calculations
+  ## ITT
+tab2[3,2]= tab2[2,2]-tab2[1,2]
+tab2[3,3]= tab2[2,3]-tab2[1,3]
+tab2[3,4]= tab2[2,4]-tab2[1,4]
+tab2[3,5]= tab2[2,5]-tab2[1,5]
+  ## ATET
+tab2[4,2]= tab2[3,2]/compl_rate
+tab2[4,3]= tab2[3,3]/compl_rate
+tab2[4,4]= tab2[3,4]/compl_rate
+tab2[4,5]= tab2[3,5]/compl_rate
+
+tab2
+```
+
+```{r message=FALSE, warning=FALSE, results='asis'}
+# Trimming our data set
+ohp2 = ohp %>% group_by(treatment) %>%
+  select(c(
+    "treatment",
+    "dia_dx_post_lottery",
+    "hbp_dx_post_lottery",
+    "rx_num_mod_inp",
+    "doc_num_mod_inp",
+    "dep_dx_post_lottery"))
+
+star_mod1 = lm(data = ohp2, formula = dia_dx_post_lottery~
+     treatment+
+     hbp_dx_post_lottery+
+     rx_num_mod_inp+
+     doc_num_mod_inp+
+     dep_dx_post_lottery+
+     dia_dx_post_lottery)
+star_mod2 = lm(data = ohp2, formula = hbp_dx_post_lottery~
+     treatment+
+     hbp_dx_post_lottery+
+     rx_num_mod_inp+
+     doc_num_mod_inp+
+     dep_dx_post_lottery+
+     dia_dx_post_lottery)
+star_mod3 = lm(data = ohp2, formula = rx_num_mod_inp~
+     treatment+
+     hbp_dx_post_lottery+
+     rx_num_mod_inp+
+     doc_num_mod_inp+
+     dep_dx_post_lottery+
+     dia_dx_post_lottery)
+star_mod4 = lm(data = ohp2, formula = doc_num_mod_inp~
+     treatment+
+     hbp_dx_post_lottery+
+     rx_num_mod_inp+
+     doc_num_mod_inp+
+     dep_dx_post_lottery+
+     dia_dx_post_lottery)
+star_mod5 = lm(data = ohp2, formula = dep_dx_post_lottery~
+     treatment+
+     hbp_dx_post_lottery+
+     rx_num_mod_inp+
+     doc_num_mod_inp+
+     dep_dx_post_lottery+
+     dia_dx_post_lottery)
+stargazer::stargazer(star_mod2,star_mod3,star_mod4,
+                     star_mod5,star_mod1,type = "html",
+                     colnames  = FALSE,
+                     column.labels = c("Hypertension",
+                                       "Prescriptions",
+                                       "Doctor Visits",
+                                       "Depression",
+                                       "Diabetes"))
+```
+
+
+
 # *Question 8:*
 Do you have to worry about attrition bias in analyzing this data? Explain
 why or why not?
+
+Attrition bias is something that needs to be considered in this topic of analysis. If a person belonged to the treatment group and left halfway though the duration of the study, then the *true* effect of the treatment will be altered because we will not have the information about how the individual *would* have acted given the treatment. Instead as a result, when looking at an overview of the data and attempting to define causality, there will be a seemingly-lesser impact of the treatment that what might be the true treatment effect. 
 
 # *Question 9:*
 Suppose that you are submitting these results to a general interest journal
 such as Science for publication. Write an abstract of 200 or fewer words
 describing what you have found in your analysis of the OHP data, similar to the
 abstract in Taubman et al. (2014).
+
+In an analysis of data collected from the OHP experiment, various different observable health outcomes were collected for two groups of individuals, those who were selected in the lottery to be eligible for health coverage with OHP and those who were not selected (the treatment and the control, respectively).
+
+While proponents of expanding government-provided healthcare often suggest that the preventative care offered by readily accessible healthcare will reduce future costs and health problems, the data is not as clear. While the effects on health outcomes are difficult to discern, there is a correlation with receiving treatment, the number of visits made to the doctor and the number of prescription received.
+
+While these findings may suggest that expanding healthcare will not significantly improve patient health nor significantly reduce the financial strain on the healthcare system, an analysis of data over a longer people of obersvation and additional variables would be required to make predictions with confidence. 
+
